@@ -24,35 +24,24 @@
 size_t size = 0;
 int total_num_chunk = 0;
 int crt_file_num =-1;
-//void * addr;
+
 int int_argc = 0;
 
 typedef struct Task{
-    //void(*taskFunction)(char**,char**, char**);
     char* start;
     int task_order;
     char **task_result;
+    int result_len;
     int task_len;
     int done;
 }Task;
 
-//typedef struct ResultQueue{
-//    Task * arr;
-//    int front,rear; //index of the first and last tasks in the queue
-//    int max_queue_size;
-//
-////    int num_tasks ;
-//    pthread_mutex_t mutex_Q;
-//    pthread_cond_t cond_Q;
-//
-//}ResultQueue;
 
 typedef struct TaskQueue{
     Task * arr;
     int front,rear; //index of the first and last tasks in the queue
     int max_queue_size;
-    
-//    int num_tasks ;
+
     pthread_mutex_t mutex_Q;
     pthread_cond_t cond_Q;
 
@@ -85,9 +74,7 @@ void enqueue(TaskQueue *T, Task *t){
     else{
         T->rear = (T->rear+1) % T->max_queue_size;
     }
-    
-    //(T->arr +1) = malloc(sizeof(Task*));
-    //printf ("T->rear:%d\n",T->rear);
+
     *(T->arr + T->rear) = *t;
     
 }
@@ -106,42 +93,14 @@ int dequeue(TaskQueue *T){//return the index of the dequeued item
     }
     return index;
 }
-//
-//void insert_Task(TaskQueue *T, Task * t, int index){
-//    if (is_full(T)) {
-//            printf("Queue is full\n");
-//            return;
-//        }
-//    if (is_empty(T)) {
-//            T->front = 0;
-//            T->rear = 0;
-//    }else {
-//            if (index < T->front) {
-//                T->front = (T->front - 1 + T->max_queue_size) % T->max_queue_size;
-//            }
-//            T->rear = (T->rear + 1) % T->max_queue_size;
-//            int i;
-//            for (i = T->rear; i != (index % T->max_queue_size); i = (i - 1 + T->max_queue_size) % T->max_queue_size) {
-//                T->arr[i] = T->arr[(i - 1 + T->max_queue_size) % T->max_queue_size];
-//            }
-//
-//        T->arr[index % T->max_queue_size] = *t;
-//    }
-//
-//}
+
 
 TaskQueue taskQueue ;
 
-//Task taskQueue [262145];
 int num_tasks = 0;
 
-//pthread_mutex_t mutex_Q;
-//pthread_cond_t cond_Q;
-
 pthread_mutex_t mutex_total_num_chunk;
-//pthread_cond_t cond_total_num_chunk;
 
-//TaskQueue taskResult;
 Task taskResult [262145];
 int total_task_order = 0;
 int num_encoded_tasks = 0;
@@ -198,13 +157,7 @@ void* thread_start(){//encode chunks, input chunk data(args)
                         }
             pthread_mutex_unlock(&mutex_total_num_chunk);
         }
-        //dequeue
-//        task = taskQueue[0];
-//        int i;
-//        for (i = 0; i < num_tasks- 1; i++) {
-//            taskQueue[i] = taskQueue[i + 1];
-//        }
-        //printf("dequeue(&taskQueue):%d\n", dequeue(&taskQueue));
+ 
         task = *((&taskQueue)->arr+dequeue(&taskQueue));
         num_tasks--;
         pthread_cond_signal(&taskQueue.cond_Q);
@@ -232,10 +185,6 @@ void* thread_start(){//encode chunks, input chunk data(args)
 void read_files(char **files, int num_files );
 
 int main(int argc, char * argv[]){
-    //printf("argc:%d\n",argc);
-//    unsigned char u = convert(argc);
-    //write(STDOUT_FILENO,&u,1);
-    
 
     if(argc<2){
         perror("no input files");
@@ -249,15 +198,12 @@ int main(int argc, char * argv[]){
         switch(option){
             case'j' :
                 num_threads = atoi(argv[2]);
-              //  printf("argc:%d\n",argc);
         }
     }
     //creating threads
     
         //thread ids
         pthread_t th_ids[num_threads];
-//        pthread_mutex_init(&mutex_Q, NULL);
-//        pthread_cond_init(&cond_Q, NULL);
     
         pthread_mutex_init(&taskQueue.mutex_Q, NULL);
         pthread_cond_init(&taskQueue.cond_Q, NULL);
@@ -310,7 +256,7 @@ int main(int argc, char * argv[]){
             pthread_cond_destroy(&cond_R);
            
             pthread_mutex_destroy(&mutex_total_num_chunk);
-//            pthread_cond_destroy(&cond_total_num_chunk);
+
         }
 
     free((&taskQueue)->arr);
@@ -327,9 +273,7 @@ void collect_result(){
     char ch,prev_ch='\0';
     unsigned  cnt=0,prev_cnt=0;
     int same = 0;
-//    unsigned prev_cnt_;
     for(int i=0;i<total_task_order;i++){
-        //printf("i:%d, taskresult:%s\n",i,*(taskResult[i].task_result));
        
         pthread_mutex_lock(&mutex_R);
         task_waited_to_be_done = i;
@@ -338,19 +282,17 @@ void collect_result(){
         }
         pthread_mutex_unlock(&mutex_R);
             
-            for( int j =0; *(*(taskResult[i].task_result)+j);j++){
-                //printf("j:%d\n",j);
+            for( int j =0; j<taskResult[i].result_len; j++){
+
                 if(!(j%2)){
                     ch = *(*(taskResult[i].task_result)+j);
-//                    printf("i:%d, ch:%c\n",i,ch);
-                    if(prev_ch && prev_ch!=ch && !(i==0&&j==0)){
+
+                    if(prev_ch!=ch && !(i==0&&j==0)){
                         write(STDOUT_FILENO,&prev_ch,1);
-                       // prev_cnt_ = convert(prev_cnt);
                         write(STDOUT_FILENO,&prev_cnt,1);
-//                        printf("%c",prev_ch);
-//                        printf("%d",prev_cnt);
+
                         prev_ch = ch;
-                       // prev_cnt = 0;
+                   
                         same = 0;
                         
                     }else{
@@ -364,33 +306,26 @@ void collect_result(){
                     cnt = *(*(taskResult[i].task_result)+j);
                     if(same){prev_cnt += cnt;}
                     else {prev_cnt = cnt;}
-
                 }
-              
             }
-//        free(*(taskResult[i].task_result));
     }
     
-    
     write(STDOUT_FILENO,&prev_ch,1);
-    //printf("%d",cnt);
-    //prev_cnt = prev_cnt +48;
-    //prev_cnt_ = convert(prev_cnt);
     write(STDOUT_FILENO,&prev_cnt,1);
 }
 
 void encode(Task * task){
     
-    //printf("taskorder:%d threadid:%d\n",task->task_order,(int)pthread_self());
     char prev='\0';
     char ch;
     unsigned  count = 0;
-//   char count_;
+
     int remain = task->task_len;//CHUNK_SIZE
-    //printf("task->task_len*2:%d\n",task->task_len);
+  
     
     *(task->task_result) = malloc((task->task_len)*2);
-    //printf("task->task_len*2:%d\n",task->task_len);
+    
+    
     int i=0;
     while(remain>0){
         if(remain ==1){
@@ -398,41 +333,27 @@ void encode(Task * task){
          } else{
             ch = (*(task->start)++);
             }
-        
-//        printf("ch1:%c\ntask->task_order:%d\nch2:%c\n",ch, task->task_order,*(task->start));
-        
+
             if(prev!=ch &&  count>0){
-//                printf("dif! prev:%c, ch:%c\n",prev, ch);
-         
-           //     memcpy((*(task->task_result))+(i++),&prev,1);
+
                 *((*(task->task_result))+(i++)) = prev;
-                //count_ = count+'0';
-//                count_ = count+48;
-               // count_ = (char)(count);
-//                printf("count_:%d\n",count);
-//                printf("count_:%c\n",count_);
-              //  memcpy((*(task->task_result))+(i++),&count,1);
                 *((*(task->task_result))+(i++)) = count;
 
             count = 0;
+            (task->result_len)+=2;
         
         }
         prev=ch;
         count++;
         remain--;
-      //  task->task_result_len++;
+        
       
         //print out last char and its count
         if(!remain){
             *((*(task->task_result))+(i++)) = prev;
-//            memcpy((*(task->task_result))+(i++),&prev,1);
-          // count_ = count+'0';
-            //count_ = (char)count;
             *((*(task->task_result))+(i++)) = count;
-//            memcpy((*(task->task_result))+(i++),&count ,1);
-//            printf("remain\n");
-            //write(STDOUT_FILENO,*(task->task_result),i);
-//            printf("remain DONE\n");
+    
+            (task->result_len )+=2;
         }
     }
  
@@ -460,7 +381,7 @@ void read_files(char **files, int num_files ){
       //  printf("file:%s\n",files[i]);
        
         //open file
-        if((fd_in = fopen(files[i],"r"))==NULL){
+        if((fd_in = fopen(files[i],"rb"))==NULL){
             printf("Error open file: %s\n",files[i]);
             return;
         }
@@ -477,12 +398,9 @@ void read_files(char **files, int num_files ){
                 size += (int)sb.st_size;
 
             }
-        
-        
+
         int num_chunk = sb.st_size % CHUNK_SIZE > 0 ? (sb.st_size / CHUNK_SIZE) +1 : sb.st_size / CHUNK_SIZE;//num_chunk in this file
-//        printf("num_chunk:%d\n",num_chunk);
-//        printf("sb.st_size:%d\n",(int)sb.st_size);
-//        printf("CHUNK_SIZE:%d\n",CHUNK_SIZE);
+
     
         for (int i = 0; i < num_chunk; i++) {
             Task t = {
@@ -491,13 +409,10 @@ void read_files(char **files, int num_files ){
                 
                 .task_order = i+total_task_order,
                 .task_result = malloc(sizeof(char*)),//char** task_result
-                //.task_result_len = 0,
-//                .task_len = i== num_chunk-1 ? sb.st_size-CHUNK_SIZE*(num_chunk-1) :CHUNK_SIZE,
+                .result_len = 0,
                 .task_len = i== num_chunk-1 ? sb.st_size-CHUNK_SIZE*(num_chunk-1) :CHUNK_SIZE,
                 .done = 0
             };
-//            write(STDOUT_FILENO,(&t)->start,CHUNK_SIZE);
-//            printf("\ntask,i:%d,task_len:%d\n",i, (&t)->task_len);
              submit_task(&t);
          }
         pthread_mutex_lock(&mutex_total_num_chunk);
@@ -505,7 +420,6 @@ void read_files(char **files, int num_files ){
         crt_file_num++;
         pthread_mutex_unlock(&mutex_total_num_chunk);
         total_task_order += num_chunk;
-       // printf("here\n");
         if((fd_in)==NULL){printf("NULL\n");}
         if((fclose(fd_in))!=0){
             printf("fclose:%d\n",errno);
@@ -530,24 +444,19 @@ void nonthread_encode(int argc, char* argv[]){
                      return;
                  }
 
-
                  //encode the text in the file
-           
                  while((byte = read(fd_in, c, sizeof(char)))!=0){
                     // if(!count){ c[0] = byte;prev=byte;}
                      if ( c[0]!= prev){
                          if(prev || count>0){
                              write(STDOUT_FILENO,&prev,sizeof(char));
-                             //count = count +48;
                              write(STDOUT_FILENO,&count,1);
 
                              count = 0;
-
                          }
                      }
                      prev=c[0];
                      count ++;
-
                  };
 
                  // print last element if this is the last file in command line
