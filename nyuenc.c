@@ -89,6 +89,7 @@ void enqueue(TaskQueue *T, Task *t){
     //(T->arr +1) = malloc(sizeof(Task*));
     //printf ("T->rear:%d\n",T->rear);
     *(T->arr + T->rear) = *t;
+    
 }
 
 int dequeue(TaskQueue *T){//return the index of the dequeued item
@@ -105,6 +106,29 @@ int dequeue(TaskQueue *T){//return the index of the dequeued item
     }
     return index;
 }
+//
+//void insert_Task(TaskQueue *T, Task * t, int index){
+//    if (is_full(T)) {
+//            printf("Queue is full\n");
+//            return;
+//        }
+//    if (is_empty(T)) {
+//            T->front = 0;
+//            T->rear = 0;
+//    }else {
+//            if (index < T->front) {
+//                T->front = (T->front - 1 + T->max_queue_size) % T->max_queue_size;
+//            }
+//            T->rear = (T->rear + 1) % T->max_queue_size;
+//            int i;
+//            for (i = T->rear; i != (index % T->max_queue_size); i = (i - 1 + T->max_queue_size) % T->max_queue_size) {
+//                T->arr[i] = T->arr[(i - 1 + T->max_queue_size) % T->max_queue_size];
+//            }
+//
+//        T->arr[index % T->max_queue_size] = *t;
+//    }
+//
+//}
 
 TaskQueue taskQueue ;
 
@@ -117,6 +141,7 @@ int num_tasks = 0;
 pthread_mutex_t mutex_total_num_chunk;
 //pthread_cond_t cond_total_num_chunk;
 
+//TaskQueue taskResult;
 Task taskResult [262145];
 int total_task_order = 0;
 int num_encoded_tasks = 0;
@@ -132,19 +157,21 @@ void nonthread_encode(int argc, char* argv[]);
 
 void submit_task(Task *task){
     //enqueue
-    pthread_mutex_lock( &((&taskQueue)->mutex_Q));
+    pthread_mutex_lock(&taskQueue.mutex_Q);
 //    taskQueue[num_tasks] = *task;
     while (num_tasks == MAX_QUEUE_SIZE) {
-        pthread_cond_wait( &((&taskQueue)->cond_Q),&((&taskQueue)->mutex_Q));
+        pthread_cond_wait(&taskQueue.cond_Q,&taskQueue.mutex_Q);
     }
     enqueue(&taskQueue,task);
     num_tasks++;
-    pthread_cond_signal(&((&taskQueue)->cond_Q));
-    pthread_mutex_unlock( &((&taskQueue)->mutex_Q));
+    pthread_cond_signal(&taskQueue.cond_Q);
+    pthread_mutex_unlock(&taskQueue.mutex_Q);
 }
 
 void submit_task_result(Task *task){
     pthread_mutex_lock(&mutex_R);
+    //enqueue
+//    insert_Task(&taskResult,task,task->task_order);
     taskResult[task->task_order] = *task;
     num_encoded_tasks++;
    //signal mainthread
@@ -158,14 +185,14 @@ void* thread_start(){//encode chunks, input chunk data(args)
     
         Task task;
 
-        pthread_mutex_lock( &((&taskQueue)->mutex_Q) );
+        pthread_mutex_lock(&taskQueue.mutex_Q);
         while (num_tasks == 0) {
             
-            pthread_cond_wait( &((&taskQueue)->cond_Q), &((&taskQueue)->mutex_Q) );
+            pthread_cond_wait( &taskQueue.cond_Q, &taskQueue.mutex_Q);
             
             pthread_mutex_lock(&mutex_total_num_chunk);
                 if(total_num_chunk<=0 && crt_file_num == int_argc-3-1){
-                            pthread_mutex_unlock( &((&taskQueue)->mutex_Q) );
+                            pthread_mutex_unlock( &taskQueue.mutex_Q );
                             pthread_mutex_unlock(&mutex_total_num_chunk);
                             return NULL;
                         }
@@ -180,22 +207,22 @@ void* thread_start(){//encode chunks, input chunk data(args)
         //printf("dequeue(&taskQueue):%d\n", dequeue(&taskQueue));
         task = *((&taskQueue)->arr+dequeue(&taskQueue));
         num_tasks--;
-        pthread_cond_signal(&((&taskQueue)->cond_Q));
-        pthread_mutex_unlock(&((&taskQueue)->mutex_Q));
+        pthread_cond_signal(&taskQueue.cond_Q);
+        pthread_mutex_unlock(&taskQueue.mutex_Q);
         
         encode(&task);
         submit_task_result(&task);
 
-        pthread_mutex_lock(&((&taskQueue)->mutex_Q));
+        pthread_mutex_lock(&taskQueue.mutex_Q);
         pthread_mutex_lock(&mutex_total_num_chunk);
         if(total_num_chunk<=0 && crt_file_num == int_argc-3-1){
-            pthread_cond_broadcast(&((&taskQueue)->cond_Q));
+            pthread_cond_broadcast(&taskQueue.cond_Q);
             pthread_mutex_unlock(&mutex_total_num_chunk);
-            pthread_mutex_unlock(&((&taskQueue)->mutex_Q));
+            pthread_mutex_unlock(&taskQueue.mutex_Q);
             return NULL;
         }
         pthread_mutex_unlock(&mutex_total_num_chunk);
-        pthread_mutex_unlock(&((&taskQueue)->mutex_Q));
+        pthread_mutex_unlock(&taskQueue.mutex_Q);
     
     }
     return NULL;
@@ -232,8 +259,8 @@ int main(int argc, char * argv[]){
 //        pthread_mutex_init(&mutex_Q, NULL);
 //        pthread_cond_init(&cond_Q, NULL);
     
-        pthread_mutex_init(&((&taskQueue)->mutex_Q), NULL);
-        pthread_cond_init(&((&taskQueue)->cond_Q), NULL);
+        pthread_mutex_init(&taskQueue.mutex_Q, NULL);
+        pthread_cond_init(&taskQueue.cond_Q, NULL);
     
     pthread_mutex_init(&mutex_R, NULL);
     pthread_cond_init(&cond_R, NULL);
@@ -248,6 +275,7 @@ int main(int argc, char * argv[]){
         }
         else{//create threads
             init_TaskQueue(&taskQueue);
+//            init_TaskQueue(&taskResult);
             
             int_argc = argc;
             for(int i=0; i<num_threads; i++){
@@ -275,8 +303,8 @@ int main(int argc, char * argv[]){
                 }
             }
             
-            pthread_mutex_destroy(&((&taskQueue)->mutex_Q));
-            pthread_cond_destroy(&((&taskQueue)->cond_Q));
+            pthread_mutex_destroy(&taskQueue.mutex_Q);
+            pthread_cond_destroy(&taskQueue.cond_Q);
             
             pthread_mutex_destroy(&mutex_R);
             pthread_cond_destroy(&cond_R);
@@ -306,7 +334,6 @@ void collect_result(){
         pthread_mutex_lock(&mutex_R);
         task_waited_to_be_done = i;
         while(!taskResult[i].done){
-            
             pthread_cond_wait(&cond_R, &mutex_R);
         }
         pthread_mutex_unlock(&mutex_R);
@@ -325,7 +352,6 @@ void collect_result(){
                         prev_ch = ch;
                        // prev_cnt = 0;
                         same = 0;
-                     
                         
                     }else{
                         prev_ch = ch;
@@ -336,15 +362,13 @@ void collect_result(){
                 }
                 else{
                     cnt = *(*(taskResult[i].task_result)+j);
-//                    cnt = atoi((*(taskResult[i].task_result)+j));
-                    //printf("%d",cnt);
                     if(same){prev_cnt += cnt;}
                     else {prev_cnt = cnt;}
-//
-                  //  printf(" prev_cnt:%d\n",prev_cnt);
+
                 }
               
             }
+//        free(*(taskResult[i].task_result));
     }
     
     
@@ -455,7 +479,7 @@ void read_files(char **files, int num_files ){
             }
         
         
-        int num_chunk = sb.st_size % CHUNK_SIZE > 0 ? (sb.st_size / CHUNK_SIZE) +1 : sb.st_size / CHUNK_SIZE;
+        int num_chunk = sb.st_size % CHUNK_SIZE > 0 ? (sb.st_size / CHUNK_SIZE) +1 : sb.st_size / CHUNK_SIZE;//num_chunk in this file
 //        printf("num_chunk:%d\n",num_chunk);
 //        printf("sb.st_size:%d\n",(int)sb.st_size);
 //        printf("CHUNK_SIZE:%d\n",CHUNK_SIZE);
@@ -469,7 +493,7 @@ void read_files(char **files, int num_files ){
                 .task_result = malloc(sizeof(char*)),//char** task_result
                 //.task_result_len = 0,
 //                .task_len = i== num_chunk-1 ? sb.st_size-CHUNK_SIZE*(num_chunk-1) :CHUNK_SIZE,
-                .task_len = i== num_chunk-1 ? size-CHUNK_SIZE*(num_chunk-1) :CHUNK_SIZE,
+                .task_len = i== num_chunk-1 ? sb.st_size-CHUNK_SIZE*(num_chunk-1) :CHUNK_SIZE,
                 .done = 0
             };
 //            write(STDOUT_FILENO,(&t)->start,CHUNK_SIZE);
@@ -495,7 +519,7 @@ void read_files(char **files, int num_files ){
 void nonthread_encode(int argc, char* argv[]){
     ssize_t byte;
              char  c[100] ;
-             char prev='\0' ;
+             char prev='\0';
             unsigned count=0;
 
              for(int i=1; i<argc; i++){
